@@ -8,15 +8,15 @@ def get_table_schema_without_last_columns(project_id, dataset_id, table_id, num_
     table_ref = client.get_table(f"{project_id}.{dataset_id}.{table_id}")
 
     # Get the list of columns
-    columns = table_ref.schema[:len(table_ref.schema) - num_columns_to_exclude]
+    columns = table_ref.schema[:-num_columns_to_exclude]
 
     # Create a new schema without the last columns
-    new_schema = bigquery.Schema(columns)
+    new_schema = [field.to_api_repr() for field in columns]
 
     return new_schema
 
 def check_schema_match(project_id, dataset_id, table1_id, table2_id):
-    # Get the schema for table1
+    # Get the schema for table1, excluding the last 2 columns
     table1_schema = get_table_schema_without_last_columns(project_id, dataset_id, table1_id, 2)
 
     # Get the schema for table2
