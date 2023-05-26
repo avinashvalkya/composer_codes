@@ -9,40 +9,30 @@ def load_data_to_table(project_id, dataset_id, table1_id, table2_id):
     table2_ref = client.get_table(f"{project_id}.{dataset_id}.{table2_id}")
 
     # Get the schema of Table1
-    table1_schema = table1_ref.schema
+    table1_schema = client.get_table(table1_ref).schema
 
     # Get the schema of Table2
-    table2_schema = table2_ref.schema
+    table2_schema = client.get_table(table2_ref).schema
 
     # Determine the index to insert the new columns
-    insert_index = len(table1_schema.fields) - 4
+    insert_index = len(table1_schema) - 4
 
-    # Insert the new columns from Table2 into Table1 schema at the specified index
-    updated_schema = table1_schema.fields[:insert_index] + table2_schema.fields + table1_schema.fields[insert_index:]
+    # Generate the SQL statement to modify the schema of Table1
+    alter_table_sql = f"ALTER TABLE `{project_id}.{dataset_id}.{table1_id}`"
 
-    # Generate the configuration for the load job
-    job_config = bigquery.LoadJobConfig(
-        schema=updated_schema,
-        write_disposition="WRITE_APPEND"
-    )
+    # Generate the SQL statement to add the new columns from Table2 to Table1 at the specified index
+    add_columns_sql = ", ".join([f"ADD COLUMN {field.name} {field.field_type}" for field in table2_schema])
 
-    # Start the load job to load data from Table2 into Table1
-    load_job = client.load_table_from_table(
-        source_table=table2_ref,
-        destination_table=table1_ref,
-        job_config=job_config
-    )
+    # Execute the ALTER TABLE statement to modify the schema of Table1
+    client.query(f"{alter_table_sql} {add_columns_sql} AFTER {table1_schema[insert_index].name}").result()
 
-    # Wait for the load job to complete
-    load_job.result()
+    # Generate the SQL statement to insert data from Table2 into Table1
+    insert_into_sql = f"INSERT INTO `{project_id}.{dataset_id}.{table1_id}` SELECT * FROM `{project_id}.{dataset_id}.{table2_id}`"
 
-    # Check if the load job succeeded
-    if load_job.errors:
-        print("Error loading data into BigQuery table:")
-        for error in load_job.errors:
-            print(error)
-    else:
-        print("Data loaded successfully.")
+    # Execute the INSERT INTO statement to load data from Table2 into Table1
+    client.query(insert_into_sql).result()
+
+    print("Data loaded successfully.")
 
 # Set your project ID, dataset ID, table1 ID, and table2 ID
 project_id = "your-project-id"
